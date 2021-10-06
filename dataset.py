@@ -3,7 +3,6 @@ from typing import Union
 
 import pandas
 import torch
-from torch import nn
 from torch.utils.data import Dataset, DataLoader
 
 from embeddings import RandomEmbedding, Word2VecEmbedding, Embedding

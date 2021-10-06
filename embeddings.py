@@ -12,10 +12,7 @@ class Embedding:
         pass
 
     def __call__(self, sentence):
-        embeddings = []
-        for word in sentence:
-            embeddings.append(self.word_embedding(word))
-        return np.stack(embeddings)
+        return np.stack(map(self.word_embedding, sentence))
 
 
 class RandomEmbedding(Embedding):
