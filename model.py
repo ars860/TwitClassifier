@@ -3,7 +3,7 @@ from torch import nn
 
 
 class LSTMTwitClassifier(nn.Module):
-    def __init__(self, targets_cnt, embedding_dim=10, hidden_dim=10):
+    def __init__(self, targets_cnt, embedding_dim=10, hidden_dim=10, dropout=0, lstm_layers=1):
         super(LSTMTwitClassifier, self).__init__()
 
         self.embedding_dim = embedding_dim
@@ -15,8 +15,9 @@ class LSTMTwitClassifier(nn.Module):
         # self.embedding = nn.Embedding(len(word2id), embedding_dim=embedding_dim)
         # self.embedding.requires_grad_ = False
 
-        self.lstm = nn.LSTM(embedding_dim, hidden_dim)
-        self.linear1 = nn.Linear(hidden_dim, targets_cnt)
+        self.lstm = nn.LSTM(embedding_dim, hidden_dim, num_layers=lstm_layers, dropout=dropout)
+        self.dropout = nn.Dropout(p=dropout)
+        self.linear1 = nn.Linear(lstm_layers * hidden_dim, targets_cnt)
         # self.linear2 = nn.Linear(hidden_dim, targets_cnt)
 
     def get_word_embedding(self, word):
@@ -39,6 +40,7 @@ class LSTMTwitClassifier(nn.Module):
         # embedded = self._get_sentence_embedding(sentence)
 
         _, (h, _) = self.lstm(sentence.view(sentence.shape[1], 1, -1))
+        h = self.dropout(h)
         h = self.linear1(h.view(-1))
         # h = self.linear2(h)
 

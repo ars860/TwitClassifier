@@ -1,3 +1,5 @@
+from pathlib import Path
+
 import numpy as np
 import torch
 from gensim.models import Word2Vec
@@ -11,8 +13,11 @@ class Embedding:
     def update(self, sentences):
         pass
 
+    def clone(self):
+        return self
+
     def __call__(self, sentence):
-        return np.stack(map(self.word_embedding, sentence))
+        return np.stack(list(map(self.word_embedding, sentence)))
 
 
 class RandomEmbedding(Embedding):
@@ -28,18 +33,21 @@ class RandomEmbedding(Embedding):
 
         self.word2id = word2id
         self.embedding = nn.Embedding(len(word2id) + 1, embedding_dim=embedding_dim)
-        self.embedding.requires_grad_(False)
+        self.embedding.requires_grad_ = False
 
     def word_embedding(self, word):
         if word not in self.word2id:
-            return self.embedding(torch.LongTensor(len(self.word2id))).numpy()
+            return self.embedding(torch.LongTensor([len(self.word2id)])).detach().numpy()
 
-        return self.embedding(torch.LongTensor(self.word2id[word])).numpy()
+        return self.embedding(torch.LongTensor([self.word2id[word]])).detach().numpy()
 
 
 class Word2VecEmbedding(Embedding):
-    def __init__(self, sentences, embedding_dim):
-        self.model = Word2Vec(sentences=sentences, size=embedding_dim, window=5, min_count=1, workers=2)
+    def __init__(self, sentences=None, embedding_dim=None):
+        if sentences is not None and embedding_dim is not None:
+            self.model = Word2Vec(size=embedding_dim, window=5, min_count=1, workers=2)
+            self.model.build_vocab(sentences=sentences, progress_per=100)
+            self.model.train(sentences=sentences, total_examples=len(sentences), epochs=32)
 
     def update(self, sentences):
         self.model.build_vocab(sentences, update=True)
@@ -47,3 +55,12 @@ class Word2VecEmbedding(Embedding):
 
     def word_embedding(self, word):
         return self.model.wv[word]
+
+    def clone(self):
+        self.model.save("learned_models/word2vec_tmp.model")
+        model = Word2Vec.load("learned_models/word2vec_tmp.model")
+        # model.load("learned_models/word2vec_tmp.model")
+        embedding = Word2VecEmbedding()
+        embedding.model = model
+
+        return embedding
