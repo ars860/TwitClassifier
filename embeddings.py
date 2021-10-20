@@ -37,9 +37,9 @@ class RandomEmbedding(Embedding):
 
     def word_embedding(self, word):
         if word not in self.word2id:
-            return self.embedding(torch.LongTensor([len(self.word2id)])).detach().numpy()
+            return self.embedding(torch.LongTensor([len(self.word2id)])).detach().numpy().squeeze()
 
-        return self.embedding(torch.LongTensor([self.word2id[word]])).detach().numpy()
+        return self.embedding(torch.LongTensor([self.word2id[word]])).detach().numpy().squeeze()
 
 
 class Word2VecEmbedding(Embedding):

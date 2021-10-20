@@ -3,7 +3,8 @@ from torch import nn
 
 
 class LSTMTwitClassifier(nn.Module):
-    def __init__(self, targets_cnt, embedding_dim=10, hidden_dim=10, dropout=0, lstm_layers=1):
+    def __init__(self, targets_cnt, embedding_dim=10, hidden_dim=10, dropout=0, lstm_layers=1,
+                 additional_one_hot_arg=False):
         super(LSTMTwitClassifier, self).__init__()
 
         self.embedding_dim = embedding_dim
@@ -17,7 +18,7 @@ class LSTMTwitClassifier(nn.Module):
 
         self.lstm = nn.LSTM(embedding_dim, hidden_dim, num_layers=lstm_layers, dropout=dropout)
         self.dropout = nn.Dropout(p=dropout)
-        self.linear1 = nn.Linear(lstm_layers * hidden_dim, targets_cnt)
+        self.linear1 = nn.Linear(lstm_layers * hidden_dim + (4 if additional_one_hot_arg else 0), targets_cnt)
         # self.linear2 = nn.Linear(hidden_dim, targets_cnt)
 
     def get_word_embedding(self, word):
@@ -33,7 +34,7 @@ class LSTMTwitClassifier(nn.Module):
         return torch.stack(embedded)
 
     # only batch size 1 is supported
-    def forward(self, sentence):
+    def forward(self, sentence, one_hot_stuff=None):
         # if len(sentence) == 1 and isinstance(sentence[0], list):
         #     sentence = sentence[0]
 
@@ -41,6 +42,10 @@ class LSTMTwitClassifier(nn.Module):
 
         _, (h, _) = self.lstm(sentence.view(sentence.shape[1], 1, -1))
         h = self.dropout(h)
+
+        if one_hot_stuff is not None:
+            h = torch.cat(h.view(-1), one_hot_stuff)
+
         h = self.linear1(h.view(-1))
         # h = self.linear2(h)
 

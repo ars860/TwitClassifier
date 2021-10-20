@@ -1,7 +1,8 @@
 import re
 from pathlib import Path
-from typing import Union
+from typing import Union, Callable
 
+import numpy as np
 import snowballstemmer
 import pandas
 import torch
@@ -19,20 +20,40 @@ def split_sentence(sentence: str) -> list[str]:
 
 
 def one_hot_company(company: str):
+    one_hotted = None
     if company == 'apple':
-        return [1, 0, 0, 0]
+        one_hotted = [1, 0, 0, 0]
     if company == 'google':
-        return [0, 1, 0, 0]
+        one_hotted = [0, 1, 0, 0]
     if company == 'microsoft':
-        return [0, 0, 1, 0]
+        one_hotted = [0, 0, 1, 0]
     if company == 'twitter':
-        return [0, 0, 0, 1]
+        one_hotted = [0, 0, 0, 1]
+
+    return torch.Tensor(one_hotted)
 
 
-class TwitCompanyDataset(Dataset):
-    def __init__(self, dataset_path, embedding_dim=10, embedding: Union[str, Embedding] = "random"):
+def one_hot_sentiment(sentiment: str):
+    one_hotted = None
+    if sentiment == 'positive':
+        one_hotted = [1, 0, 0, 0]
+    if sentiment == 'negative':
+        one_hotted = [0, 1, 0, 0]
+    if sentiment == 'neutral':
+        one_hotted = [0, 0, 1, 0]
+    if sentiment == 'irrelevant':
+        one_hotted = [0, 0, 0, 1]
+
+    return torch.Tensor(one_hotted)
+
+
+class TwitDataset(Dataset):
+    def __init__(self, dataset_path, keys, value, embedding_dim=10,
+                 embedding: Union[str, Embedding] = "random"):
+        value, value_processor = value
+
         csv = pandas.read_csv(dataset_path)
-        csv = csv[["TweetText", "Topic"]]
+        csv = csv[["TweetText", *map(lambda k: k[0], keys), value]]
 
         sentences = []
         for (i, row) in csv.iterrows():
@@ -45,20 +66,25 @@ class TwitCompanyDataset(Dataset):
             if embedding == "word2vec":
                 self.embedding = Word2VecEmbedding(sentences, embedding_dim)
         else:
-            # if isinstance(embedding, Word2VecEmbedding):
             self.embedding = embedding.clone()
             self.embedding.update(sentences)
-            # else:
-            #     raise NotImplementedError("Fuck you")
 
         self.rows = []
         for (i, row) in csv.iterrows():
-            processed = split_sentence(row.TweetText)
+            keys_processed = []
+
+            processed = split_sentence(row["TweetText"])
             if len(processed) > 0:
-                sentence = self.embedding(split_sentence(row.TweetText))
-                self.rows.append((sentence, torch.Tensor(one_hot_company(row.Topic))))
+                sentence = self.embedding(split_sentence(row["TweetText"]))
+                keys_processed.append(sentence)
             else:
-                print(row.TweetText)
+                print(f"Tweet ignored due to unreadability: {row.TweetText}")
+                continue
+
+            for key, processor in keys:
+                keys_processed.append(processor(row[key]))
+
+            self.rows.append((*keys_processed, value_processor(row[value])))
 
     def __getitem__(self, index):
         return self.rows[index]
@@ -67,12 +93,52 @@ class TwitCompanyDataset(Dataset):
         return len(self.rows)
 
 
-def get_twit_company_dataloaders(dataset_path: str = "dataset", workers: int = 1, batch_size: int = 1,
+def twit2company_dataset(dataset_path: Path, embedding_dim: int, embedding: str):
+    return TwitDataset(dataset_path=dataset_path, keys=[], value=("Topic", one_hot_company), embedding_dim=embedding_dim,
+                       embedding=embedding)
+
+
+def twit2sentiment_dataset(dataset_path: Path, embedding_dim: int, embedding: str):
+    return TwitDataset(dataset_path=dataset_path, keys=[], value=("Sentiment", one_hot_sentiment), embedding_dim=embedding_dim,
+                       embedding=embedding)
+
+
+def twit_company2sentiment_dataset(dataset_path: Path, embedding_dim: int, embedding: str):
+    return TwitDataset(dataset_path=dataset_path, keys=[("Topic", one_hot_company)], value=("Sentiment", one_hot_sentiment), embedding_dim=embedding_dim,
+                       embedding=embedding)
+
+
+def get_dataloaders(task, dataset_path: str = "dataset", workers: int = 1, batch_size: int = 1,
                                  embedding_dim: int = 10, embedding: str = "random"):
-    train_dataset = TwitCompanyDataset(Path() / dataset_path / "Train.csv", embedding_dim=embedding_dim,
-                                       embedding=embedding)
-    test_dataset = TwitCompanyDataset(Path() / dataset_path / "Test.csv", embedding=train_dataset.embedding,
-                                      embedding_dim=embedding_dim)
+
+    get_dataset = twit2company_dataset if task == "text2company" else twit2sentiment_dataset if task == "text2sentiment" else twit_company2sentiment_dataset
+
+    train_dataset = get_dataset(Path() / dataset_path / "Train.csv", embedding_dim=embedding_dim,
+                                         embedding=embedding)
+    test_dataset = get_dataset(Path() / dataset_path / "Test.csv", embedding=train_dataset.embedding,
+                                        embedding_dim=embedding_dim)
 
     return train_dataset, DataLoader(train_dataset, batch_size=batch_size, num_workers=workers), \
            test_dataset, DataLoader(test_dataset, batch_size=batch_size, num_workers=workers)
+
+
+def get_twit_company_dataloaders(dataset_path: str = "dataset", workers: int = 1, batch_size: int = 1,
+                                 embedding_dim: int = 10, embedding: str = "random"):
+    return get_dataloaders("text2company", dataset_path, workers, batch_size, embedding_dim, embedding)
+    # train_dataset = twit2company_dataset(Path() / dataset_path / "Train.csv", embedding_dim=embedding_dim,
+    #                                      embedding=embedding)
+    # test_dataset = twit2company_dataset(Path() / dataset_path / "Test.csv", embedding=train_dataset.embedding,
+    #                                     embedding_dim=embedding_dim)
+    #
+    # return train_dataset, DataLoader(train_dataset, batch_size=batch_size, num_workers=workers), \
+    #        test_dataset, DataLoader(test_dataset, batch_size=batch_size, num_workers=workers)
+
+
+def get_twit_sentiment_dataloaders(dataset_path: str = "dataset", workers: int = 1, batch_size: int = 1,
+                                 embedding_dim: int = 10, embedding: str = "random"):
+    return get_dataloaders("text2sentiment", dataset_path, workers, batch_size, embedding_dim, embedding)
+
+
+def get_twit_company_sentiment_dataloaders(dataset_path: str = "dataset", workers: int = 1, batch_size: int = 1,
+                                 embedding_dim: int = 10, embedding: str = "random"):
+    return get_dataloaders("text_company2sentiment", dataset_path, workers, batch_size, embedding_dim, embedding)
