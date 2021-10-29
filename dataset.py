@@ -63,17 +63,29 @@ class TwitDataset(Dataset):
         else:
             raise AttributeError(f"Unknown preprocessing: {preprocessing}")
 
-        sentences = []
+        self.rows = []
         for (i, row) in csv.iterrows():
-            sentence = self.preprocess_with_stem(row.TweetText)
-            if len(sentence) > 0:
-                sentences.append(sentence)
+            keys_processed = []
+
+            processed = self.preprocess_with_stem(row["TweetText"])
+            if len(processed) > 0:
+                keys_processed.append(processed)
+            else:
+                print(f"Tweet ignored due to unreadability: {row.TweetText}")
+                continue
+
+            for key, processor in keys:
+                keys_processed.append(processor(row[key]))
+
+            self.rows.append((*keys_processed, value_processor(row[value])))
+
+        sentences = [sv[0] for sv in self.rows]
 
         if use_stop_words:
             stop = StopWords(sentences, self.stemmer)
-            sentences = list(map(stop, sentences))
+            self.rows = list(filter(lambda sv: len(sv[0]) > 0, map(lambda sv: (stop(sv[0]), *sv[1:]), self.rows)))
 
-        self.sentences = sentences
+        sentences = [sv[0] for sv in self.rows]
 
         if isinstance(embedding, str):
             if embedding == "random":
@@ -84,22 +96,24 @@ class TwitDataset(Dataset):
             self.embedding = embedding.clone()
             self.embedding.update(sentences)
 
-        self.rows = []
-        for (i, row) in csv.iterrows():
-            keys_processed = []
+        self.rows = list(filter(lambda sv: len(sv[0]) > 0, map(lambda sv: (self.embedding(sv[0]), *sv[1:]), self.rows)))
 
-            processed = self.preprocess_with_stem(row["TweetText"])
-            if len(processed) > 0:
-                sentence = self.embedding(processed)
-                keys_processed.append(sentence)
-            else:
-                print(f"Tweet ignored due to unreadability: {row.TweetText}")
-                continue
-
-            for key, processor in keys:
-                keys_processed.append(processor(row[key]))
-
-            self.rows.append((*keys_processed, value_processor(row[value])))
+        # self.rows = []
+        # for (i, row) in csv.iterrows():
+        #     keys_processed = []
+        #
+        #     processed = self.preprocess_with_stem(row["TweetText"])
+        #     if len(processed) > 0:
+        #         sentence = self.embedding(processed)
+        #         keys_processed.append(sentence)
+        #     else:
+        #         print(f"Tweet ignored due to unreadability: {row.TweetText}")
+        #         continue
+        #
+        #     for key, processor in keys:
+        #         keys_processed.append(processor(row[key]))
+        #
+        #     self.rows.append((*keys_processed, value_processor(row[value])))
 
     def preprocess_with_stem(self, sentence):
         return list(map(lambda w: self.stemmer.stemWord(w), self.preprocess(sentence)))
@@ -121,7 +135,7 @@ def twit2sentiment_dataset(**kwargs):
 
 
 def twit_company2sentiment_dataset(**kwargs):
-    return TwitDataset(keys=[("Topic", one_hot_company)], **kwargs)
+    return TwitDataset(keys=[("Topic", one_hot_company)], value=("Sentiment", one_hot_sentiment), **kwargs)
 
 
 def get_dataloaders(task, workers: int = 1, batch_size: int = 1, dataset_path: str = "dataset", **dataset_args):

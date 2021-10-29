@@ -23,9 +23,10 @@ class LSTMTwitClassifier(nn.Module):
 
     def get_word_embedding(self, word):
         if word not in self.word2id:
-            if word not in self.unknown_words2embedding:
-                self.unknown_words2embedding[word] = torch.rand(self.embedding_dim)
-            return self.unknown_words2embedding[word]
+            return torch.zeros(self.embedding_dim)
+            # if word not in self.unknown_words2embedding:
+            #     self.unknown_words2embedding[word] = torch.rand(self.embedding_dim)
+            # return self.unknown_words2embedding[word]
 
         return self.embedding(torch.LongTensor([self.word2id[word]]))
 
@@ -44,7 +45,7 @@ class LSTMTwitClassifier(nn.Module):
         h = self.dropout(h)
 
         if one_hot_stuff is not None:
-            h = torch.cat(h.view(-1), one_hot_stuff)
+            h = torch.cat((h.view(-1), one_hot_stuff.view(-1)))
 
         h = self.linear1(h.view(-1))
         # h = self.linear2(h)
