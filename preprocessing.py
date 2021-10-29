@@ -1,5 +1,8 @@
 import re
 import unicodedata
+from collections import Counter
+import nltk
+from nltk.corpus import stopwords
 
 
 class Clean:
@@ -258,3 +261,19 @@ class Clean:
 
         sentence = list(filter(lambda s: len(s) > 0, sentence.split()))
         return sentence
+
+
+class StopWords:
+    def __init__(self, sentences, stemmer, stops_cnt=20):
+        nltk.download('stopwords')
+
+        text_words = Counter([word for sentence in sentences for word in sentence])
+        text_words = sorted([(word, cnt) for word, cnt in text_words.items()], key=lambda wc: -wc[1])
+        text_words = [word for word, cnt in text_words]
+        text_words = list(filter(lambda w: not (w.startswith('<') and w.endswith('>')), text_words))
+        text_words = set(text_words[:stops_cnt])
+        nltk_words = set(map(stemmer.stemWord, stopwords.words('english')))
+        self.stop_words = nltk_words # text_words |
+
+    def __call__(self, sentence):
+        return list(filter(lambda word: word not in self.stop_words, sentence))
