@@ -125,24 +125,39 @@ class TwitDataset(Dataset):
         return len(self.rows)
 
 
-# dataset_path: Path, embedding_dim: int, embedding: str, preprocessing: str, use_stop_words : bool
-def twit2company_dataset(**kwargs):
-    return TwitDataset(keys=[], value=("Topic", one_hot_company), **kwargs)
+def twit2company_dataset(dataset_path: Path, embedding_dim: int, embedding: str, preprocessing: str,
+                         use_stop_words: bool):
+    return TwitDataset(dataset_path=dataset_path, keys=[], value=("Topic", one_hot_company),
+                       embedding_dim=embedding_dim,
+                       embedding=embedding,
+                       preprocessing=preprocessing, use_stop_words=use_stop_words)
 
 
-def twit2sentiment_dataset(**kwargs):
-    return TwitDataset(keys=[], value=("Sentiment", one_hot_sentiment), **kwargs)
+def twit2sentiment_dataset(dataset_path: Path, embedding_dim: int, embedding: str, preprocessing: str,
+                           use_stop_words: bool):
+    return TwitDataset(dataset_path=dataset_path, keys=[], value=("Sentiment", one_hot_sentiment),
+                       embedding_dim=embedding_dim,
+                       embedding=embedding,
+                       preprocessing=preprocessing, use_stop_words=use_stop_words)
 
 
-def twit_company2sentiment_dataset(**kwargs):
-    return TwitDataset(keys=[("Topic", one_hot_company)], value=("Sentiment", one_hot_sentiment), **kwargs)
+def twit_company2sentiment_dataset(dataset_path: Path, embedding_dim: int, embedding: str, preprocessing: str,
+                                   use_stop_words: bool):
+    return TwitDataset(dataset_path=dataset_path, keys=[("Topic", one_hot_company)],
+                       value=("Sentiment", one_hot_sentiment), embedding_dim=embedding_dim,
+                       embedding=embedding,
+                       preprocessing=preprocessing, use_stop_words=use_stop_words)
 
 
-def get_dataloaders(task, workers: int = 1, batch_size: int = 1, dataset_path: str = "dataset", **dataset_args):
+def get_dataloaders(task, dataset_path: str = "dataset", workers: int = 1, batch_size: int = 1,
+                    embedding_dim: int = 10, embedding: str = "random", preprocessing: str = "simple",
+                    use_stop_words: bool = False):
     get_dataset = twit2company_dataset if task == "text2company" else twit2sentiment_dataset if task == "text2sentiment" else twit_company2sentiment_dataset
 
-    train_dataset = get_dataset(dataset_path=Path() / dataset_path / "Train.csv", **dataset_args)
-    test_dataset = get_dataset(dataset_path=Path() / dataset_path / "Test.csv", **dataset_args)
+    train_dataset = get_dataset(Path() / dataset_path / "Train.csv", embedding_dim=embedding_dim,
+                                embedding=embedding, preprocessing=preprocessing, use_stop_words=use_stop_words)
+    test_dataset = get_dataset(Path() / dataset_path / "Test.csv", embedding=train_dataset.embedding,
+                               embedding_dim=embedding_dim, preprocessing=preprocessing, use_stop_words=use_stop_words)
 
     return train_dataset, DataLoader(train_dataset, batch_size=batch_size, num_workers=workers), \
            test_dataset, DataLoader(test_dataset, batch_size=batch_size, num_workers=workers)
@@ -150,25 +165,20 @@ def get_dataloaders(task, workers: int = 1, batch_size: int = 1, dataset_path: s
 
 def get_twit_company_dataloaders(dataset_path: str = "dataset", workers: int = 1, batch_size: int = 1,
                                  embedding_dim: int = 10, embedding: str = "random", preprocessing: str = "simple",
-                                 use_stop_words=False):
-    return get_dataloaders(task="text2company", dataset_path=dataset_path, workers=workers, batch_size=batch_size,
-                           embedding_dim=embedding_dim, embedding=embedding, preprocessing=preprocessing,
+                                 use_stop_words: bool = False):
+    return get_dataloaders("text2company", dataset_path, workers, batch_size, embedding_dim, embedding, preprocessing,
                            use_stop_words=use_stop_words)
 
 
 def get_twit_sentiment_dataloaders(dataset_path: str = "dataset", workers: int = 1, batch_size: int = 1,
                                    embedding_dim: int = 10, embedding: str = "random", preprocessing: str = "simple",
-                                   use_stop_words=False):
-    return get_dataloaders(task="text2sentiment", dataset_path=dataset_path, workers=workers, batch_size=batch_size,
-                           embedding_dim=embedding_dim, embedding=embedding, preprocessing=preprocessing,
+                                   use_stop_words: bool = False):
+    return get_dataloaders("text2sentiment", dataset_path, workers, batch_size, embedding_dim, embedding, preprocessing,
                            use_stop_words=use_stop_words)
 
 
 def get_twit_company_sentiment_dataloaders(dataset_path: str = "dataset", workers: int = 1, batch_size: int = 1,
                                            embedding_dim: int = 10, embedding: str = "random",
-                                           preprocessing: str = "simple",
-                                           use_stop_words=False):
-    return get_dataloaders(task="text_company2sentiment", dataset_path=dataset_path, workers=workers,
-                           batch_size=batch_size, embedding_dim=embedding_dim, embedding=embedding,
-                           preprocessing=preprocessing,
-                           use_stop_words=use_stop_words)
+                                           preprocessing: str = "simple", use_stop_words: bool = False):
+    return get_dataloaders("text_company2sentiment", dataset_path, workers, batch_size, embedding_dim, embedding,
+                           preprocessing, use_stop_words=use_stop_words)
