@@ -82,14 +82,14 @@ class TwitDataset(Dataset):
         sentences = [sv[0] for sv in self.rows]
 
         if use_stop_words:
-            stop = StopWords(sentences, self.stemmer)
-            self.rows = list(filter(lambda sv: len(sv[0]) > 0, map(lambda sv: (stop(sv[0]), *sv[1:]), self.rows)))
+            self.stop = StopWords(sentences, self.stemmer)
+            self.rows = list(filter(lambda sv: len(sv[0]) > 0, map(lambda sv: (self.stop(sv[0]), *sv[1:]), self.rows)))
 
         sentences = [sv[0] for sv in self.rows]
 
         if isinstance(embedding, str):
             if embedding == "random":
-                self.embedding = RandomEmbedding(sentences, embedding_dim)
+                self.embedding = RandomEmbedding(sentences, embedding_dim, load_name=value)
             if embedding == "word2vec":
                 self.embedding = Word2VecEmbedding(sentences, embedding_dim)
         else:
@@ -98,25 +98,16 @@ class TwitDataset(Dataset):
 
         self.rows = list(filter(lambda sv: len(sv[0]) > 0, map(lambda sv: (self.embedding(sv[0]), *sv[1:]), self.rows)))
 
-        # self.rows = []
-        # for (i, row) in csv.iterrows():
-        #     keys_processed = []
-        #
-        #     processed = self.preprocess_with_stem(row["TweetText"])
-        #     if len(processed) > 0:
-        #         sentence = self.embedding(processed)
-        #         keys_processed.append(sentence)
-        #     else:
-        #         print(f"Tweet ignored due to unreadability: {row.TweetText}")
-        #         continue
-        #
-        #     for key, processor in keys:
-        #         keys_processed.append(processor(row[key]))
-        #
-        #     self.rows.append((*keys_processed, value_processor(row[value])))
-
     def preprocess_with_stem(self, sentence):
         return list(map(lambda w: self.stemmer.stemWord(w), self.preprocess(sentence)))
+
+    def process(self, sentence):
+        sentence = self.preprocess_with_stem(sentence)
+        sentence = self.stop(sentence)
+        sentence = torch.Tensor(self.embedding(sentence))
+        sentence = torch.unsqueeze(sentence, 0)
+
+        return sentence
 
     def __getitem__(self, index):
         return self.rows[index]

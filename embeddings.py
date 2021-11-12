@@ -1,4 +1,5 @@
 from pathlib import Path
+from sortedcontainers import SortedDict, SortedSet
 
 import numpy as np
 import torch
@@ -21,19 +22,29 @@ class Embedding:
 
 
 class RandomEmbedding(Embedding):
-    def __init__(self, sentences, embedding_dim):
-        words = set()
+    def __init__(self, sentences, embedding_dim, load_name):
+        words = SortedSet()
         for sentence in sentences:
             for word in sentence:
                 words.add(word)
 
-        word2id = {}
+        word2id = SortedDict()
         for (i, word) in enumerate(words):
             word2id[word] = i
 
         self.word2id = word2id
         self.embedding = nn.Embedding(len(word2id) + 1, embedding_dim=embedding_dim)
+        self.load(load_name)
         self.embedding.requires_grad_ = False
+
+    def load(self, name):
+        name = "text2company_embeddings" if name == "Topic" else "text2sentiment_embeddings"
+        load_path = Path() / "learned_embeddings" / f"{name}.pt"
+        if load_path.is_file():
+            self.embedding.load_state_dict(torch.load(load_path))
+            # self.embedding = nn.Embedding.from_pretrained(torch.load(load_path)['weight'])
+        else:
+            torch.save(self.embedding.state_dict(), load_path)
 
     def word_embedding(self, word):
         if word not in self.word2id:
